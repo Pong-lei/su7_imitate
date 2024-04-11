@@ -111,7 +111,7 @@ export default class World {
     plane.position.y = 6
     plane.scale.set(0.01, 0.01, 0.01)
     plane2.scale.set(0.01, 0.01, 0.01)
-    this.scene.add(plane, plane2)
+    // this.scene.add(plane, plane2)
 
 
     effect.selection.set([plane])
