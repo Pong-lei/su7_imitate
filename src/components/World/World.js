@@ -24,6 +24,7 @@ export default class World {
   bloomEffect;
   scaleValue = 4.8;
   lineBloom;
+  windLineBloom;
   constructor(selector, name = 'world') {
     this.domId = selector
     this.scene = new THREE.Scene()
@@ -153,6 +154,7 @@ export default class World {
      * 1、scene rotation 
      * 2、clip transform 、cilpOutLine tansform scene fog 
      * **/
+    this.windLineBloom.group.visible = true
     this.t1.to(this.scene.rotation, {
       y: Math.PI * 1.3,
       duration: 2,
@@ -163,7 +165,11 @@ export default class World {
         this.clipedge.clippingPlanes[0].normal.set(0, 0, - 1)
         this.localPlane.applyMatrix4(this.clipedge.planeMesh.matrixWorld);
       }
-    })
+    }).to(this.windLineBloom.otherMaterial.uniforms.opacity, {
+        value: 1,
+        duration: 1,
+        ease: 'power2.in',
+      }, '<')
       .to(this.topLight.material, {
         emissiveIntensity: 0,
         duration: 1,
@@ -179,6 +185,7 @@ export default class World {
         duration: 1,
         ease: 'power2.out',
       })
+
       .to(this.localPlane, {
         constant: -13,
         duration: 2,
@@ -187,11 +194,20 @@ export default class World {
           this.clipedge.planeMesh.position.x = this.localPlane.constant
         },
         onStart: () => {
+
           this.isWindMode = true
           this.lineBloom.group.visible = true
           this.bloomEffect.selection.set([this.clipedge.outlineLines, ...this.lineBloom.allLinesMesh])
         }
-      }, ">+0.5")
+      }, ">+2.5")
+      .to(this.windLineBloom.otherMaterial.uniforms.opacity, {
+        value: 0,
+        duration: 1,
+        ease: 'power2.out',
+        onComplete: () => {
+          this.windLineBloom.group.visible = false
+        }
+      })
   }
   changeNormal() {
     this.topLight.material.emissiveIntensity = 0
@@ -239,8 +255,16 @@ export default class World {
     lineBloom.group.visible = false
     this.lineBloom = lineBloom
     this.scene.add(lineBloom.group)
+    return lineBloom
   }
-  addModle(path, cb) {
+  addWindLineBloom(Curves, option) {
+    let lineBloom = new LineBloom(Curves, option)
+    lineBloom.group.visible = false
+    this.windLineBloom = lineBloom
+    this.scene.add(lineBloom.group)
+    return lineBloom
+  }
+  addModle(path) {
     const dracoLoader = new DRACOLoader();
     dracoLoader.setDecoderPath('draco/gltf/');
 
@@ -299,6 +323,9 @@ export default class World {
     }
     if (this.lineBloom) {
       this.lineBloom.renderThing()
+    }
+    if (this.windLineBloom) {
+      this.windLineBloom.renderThing()
     }
     this.composer && this.composer.render()
     // this.renderer.render(this.scene, this.camera)

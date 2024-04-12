@@ -2,17 +2,17 @@ import * as THREE from "three";
 // import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 import fragment from "./shader/fragment_line.glsl";
-import fragmentRed from "./shader/fragment_line_red.glsl";
 import vertex from "./shader/vertex_line.glsl";
 
 export default class LineBloom {
   allLinesMesh = []
-  constructor(data) {
+  otherMaterial;
+  constructor(data,option) {
     this.data = data
     this.clock = new THREE.Clock()
     this.group = new THREE.Group()
     this.group.name = 'lineBloom'
-    this.initCurves();
+    this.initCurves(option);
   }
   destory() {
     this.group.traverse(item => {
@@ -23,7 +23,7 @@ export default class LineBloom {
     })
     this.parent.remove(this.group)
   }
-  initCurves() {
+  initCurves(option) {
     this.curves = []
     this.data.points.forEach(path => {
       let points = []
@@ -58,32 +58,14 @@ export default class LineBloom {
       vertexShader: vertex,
       fragmentShader: fragment
     });
-    let redMaterial = new THREE.ShaderMaterial({
-      extensions: {
-        derivatives: "#extension GL_OES_standard_derivatives : enable"
-      },
-      side: THREE.DoubleSide,
-      uniforms: {
-        vTime: { type: "f", value: 0 },
-        color: { value: new THREE.Color(1, 0, 0.13, 1) },
-        vProgress: { type: "f", value: 0.8 },
-      },
-      transparent: true,
-      // depthTest: false,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-      vertexShader: vertex,
-      fragmentShader: fragmentRed
-    })
+    
     let len = this.curves.length
     this.material = material
-    this.redMaterial = redMaterial
+    let radius = option?.radius || 0.005
+    let radialSegments = option?.radialSegments || 3
     this.curves.forEach((path, index) => {
-      const geometry = new THREE.TubeGeometry(path, 32, 0.005, 3, false);
+      const geometry = new THREE.TubeGeometry(path, 32, radius, radialSegments, false);
       let line = new THREE.Mesh(geometry, material);
-      if (len - 5 < index) {
-        line.material = redMaterial
-      }
       this.group.scale.set(2, 2, 2)
       this.group.position.y = 0.2
       // line.scale.set(0.1, 0.1, 0.1)
@@ -92,8 +74,15 @@ export default class LineBloom {
     })
 
   }
+  setMaterial(index,material,cb){
+    this.otherMaterial = material
+    this.cb = cb
+    for (let i = index; i < this.allLinesMesh.length; i++) {
+      this.allLinesMesh[i].material = this.otherMaterial
+    }
+  }
   renderThing() {
     this.material.uniforms.vTime.value = this.clock.getElapsedTime();
-    this.redMaterial.uniforms.vTime.value = this.clock.getElapsedTime();
+    this.cb && this.cb()
   }
 }

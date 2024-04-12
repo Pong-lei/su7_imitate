@@ -1,9 +1,11 @@
-const fs = require('fs');
-const path = require('path');
+// const fs = require('fs');
+// const path = require('path');
+import fs from 'fs'
+import path from 'path'
 
 // 定义输入文件夹和输出文件路径
-const inputFolder = './outlines';
-const outputFile = './output_file.json';
+const inputFolder = './windlines';
+const outputFile = './output_file_wind.json';
 
 // 创建一个空的数组来存储所有的points对象
 let allPoints = [];

@@ -276,7 +276,6 @@ export default class OutLineClip {
   }
 
   dealModel(scaleValue, gltf, scene) {
-    console.log(gltf);
     let mergedGeometry = new THREE.BufferGeometry();
     // 存储所有模型的几何体
     let geometries = [];
