@@ -70,7 +70,7 @@ void main() {
 	vec4 mixedColor = mix(refractColor, reflectColor, reflectance) * mixRatio +
 		reflectColor * (1.0 - mixRatio);
 			// multiply water color with the mix of both textures
-	gl_FragColor = vec4(color, 1.0) * reflectColor * (0.68 - mixRatio);
+	gl_FragColor = vec4(color, 1.0) * reflectColor * (0.78 - mixRatio);
 	// gl_FragColor = vec4(color, 1.0) * mixedColor;
 
 			#include <tonemapping_fragment>
