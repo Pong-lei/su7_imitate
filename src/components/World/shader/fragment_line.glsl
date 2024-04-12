@@ -22,5 +22,5 @@ void main() {
 	vec2 st = vUv;
 	st = random(st)*st*500.;
 	float nosie = (smoothstep(0.9,0.99,mod(st.x-vTime,1.))+smoothstep(0.2,0.1,mod(st.x-vTime,1.)));
-	gl_FragColor = vec4(finalColor * nosie, hideCorners * hideCorners1);
+	gl_FragColor = vec4(finalColor, hideCorners * hideCorners1);
 }
