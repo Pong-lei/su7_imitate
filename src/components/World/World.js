@@ -20,6 +20,8 @@ import ReflectFloorMesh from './ReflectFloor';
 import OutLineClip from './OutLineClip';
 import LineBloom from './LineBloom';
 
+import WindMesh from './WindMesh'
+
 export default class World {
   bloomEffect;
   scaleValue = 4.8;
@@ -165,7 +167,7 @@ export default class World {
         this.clipedge.clippingPlanes[0].normal.set(0, 0, - 1)
         this.localPlane.applyMatrix4(this.clipedge.planeMesh.matrixWorld);
       }
-    }).to(this.windLineBloom.otherMaterial.uniforms.opacity, {
+    }).to(this.windLineBloom.material.uniforms.opacity, {
         value: 1,
         duration: 1,
         ease: 'power2.in',
@@ -200,7 +202,7 @@ export default class World {
           this.bloomEffect.selection.set([this.clipedge.outlineLines, ...this.lineBloom.allLinesMesh])
         }
       }, ">+2.5")
-      .to(this.windLineBloom.otherMaterial.uniforms.opacity, {
+      .to(this.windLineBloom.material.uniforms.opacity, {
         value: 0,
         duration: 1,
         ease: 'power2.out',
@@ -257,8 +259,8 @@ export default class World {
     this.scene.add(lineBloom.group)
     return lineBloom
   }
-  addWindLineBloom(Curves, option) {
-    let lineBloom = new LineBloom(Curves, option)
+  addWindLine(Curves, option) {
+    let lineBloom = new WindMesh(Curves, option)
     lineBloom.group.visible = false
     this.windLineBloom = lineBloom
     this.scene.add(lineBloom.group)

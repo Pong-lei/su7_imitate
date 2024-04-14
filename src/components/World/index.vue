@@ -11,6 +11,9 @@ import fragmentRed from "./shader/fragment_line_red.glsl";
 import fragmentWind from "./shader/fragment_line_wind.glsl";
 import vertex from "./shader/vertex_line.glsl";
 
+import WindMesh from './WindMesh.js'
+import windLine from './model/wind_line.glb'
+
 let su7world = {}
 let windMode = false
 let redMaterial = new ShaderMaterial({
@@ -22,7 +25,7 @@ let redMaterial = new ShaderMaterial({
     vTime: { type: 'f', value: 0 },
     color: { value: new Color(1, 0, 0.13, 1) },
     vProgress: { type: 'f', value: 0.8 },
-    opacity:{type:'f',value:0}
+    opacity:{type:'f',value:1}
   },
   transparent: true,
   // depthTest: false,
@@ -34,6 +37,7 @@ let redMaterial = new ShaderMaterial({
 let windMaterial = redMaterial.clone()
 windMaterial.fragmentShader = fragmentWind
 windMaterial.uniforms.color.value = new Color(0x555555)
+windMaterial.uniforms.random = {value:Math.random()}
 
 onMounted(() => {
   su7world = new World('su7World', 'su7World')
@@ -44,11 +48,11 @@ onMounted(() => {
   curvesInstence.setMaterial(curvesInstence.allLinesMesh.length - 5,redMaterial,()=>{
     curvesInstence.otherMaterial.uniforms.vTime.value = curvesInstence.clock.getElapsedTime();
   })
-  let windInstence = su7world.addWindLineBloom(WindCurves,{radius:0.1,radialSegments:8})
-  windInstence.group.name = 'windBloom'
-  windInstence.setMaterial(0,windMaterial,()=>{
-    windInstence.otherMaterial.uniforms.vTime.value = windInstence.clock.getElapsedTime();
-  })
+ 
+  let windInstence = su7world.addWindLine()
+  windInstence.addModel(windLine)
+  windInstence.group.scale.set(2,2,2)
+  windInstence.group.position.y = 0.2
 })
 const handleClick = () => {
   windMode = !windMode
