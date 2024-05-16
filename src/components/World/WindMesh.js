@@ -36,7 +36,6 @@ export default class WindMesh extends THREE.Mesh {
         })
     }
     renderThing() {
-        console.log(123);
         this.material.uniforms.vTime.value = this.clock.getElapsedTime();
         this.cb && this.cb()
     }

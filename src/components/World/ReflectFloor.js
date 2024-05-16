@@ -1,21 +1,13 @@
 import * as THREE from 'three'
-import { Reflector } from 'three/examples/jsm/objects/Reflector.js'
-import { Refractor } from 'three/examples/jsm/objects/Refractor.js'
-
-import fragment from './shader/fragment.glsl'
-import vertex from './shader/vertex.glsl'
 import tNormalMap0 from './textures/t_floor_normal.webp'
-import tNormalMap1 from './textures/t_floor_normal.webp'
 import tRoughness from './textures/t_floor_roughness.webp'
 
-export default class ReflectFloorMesh extends THREE.Mesh {
+export default class Reflector extends THREE.Mesh {
   constructor(geometry, options = {}) {
     super(geometry);
 
-    this.isWater = true;
-
-    this.type = 'Water';
-
+    this.type = 'Reflector';
+    this.camera = new THREE.PerspectiveCamera();
     const scope = this
 
     const color =
@@ -27,48 +19,45 @@ export default class ReflectFloorMesh extends THREE.Mesh {
     const textureHeight =
       options.textureHeight !== undefined ? options.textureHeight : 1024
     const clipBias = options.clipBias !== undefined ? options.clipBias : 0
-    const flowDirection =
-      options.flowDirection !== undefined
-        ? options.flowDirection
-        : new THREE.Vector2(1, 0)
-    const flowSpeed = options.flowSpeed !== undefined ? options.flowSpeed : 0.03
-    const reflectivity =
-      options.reflectivity !== undefined ? options.reflectivity : 0.02
     const scale = options.scale !== undefined ? options.scale : 1
     const shader =
-      options.shader !== undefined ? options.shader : ReflectFloorMesh.GlassShader
+      options.shader !== undefined ? options.shader : Reflector.ReflectorShader
 
     const textureLoader = new THREE.TextureLoader()
 
-    const flowMap = options.flowMap || undefined
     const normalMap0 =
       options.normalMap0 ||
       textureLoader.load(tNormalMap0)
-    const normalMap1 =
-      options.normalMap1 ||
-      textureLoader.load(tNormalMap1)
     const roughness = options.roughness || textureLoader.load(tRoughness)
+    const reflectorPlane = new THREE.Plane();
+    const normal = new THREE.Vector3();
+    const reflectorWorldPosition = new THREE.Vector3();
+    const cameraWorldPosition = new THREE.Vector3();
+    const rotationMatrix = new THREE.Matrix4();
+    const lookAtPosition = new THREE.Vector3(0, 0, - 1);
+    const clipPlane = new THREE.Vector4();
 
-    const cycle = 0.15 // a cycle of a flow map phase
-    const halfCycle = cycle * 0.5
-    const textureMatrix = new THREE.Matrix4()
+    const view = new THREE.Vector3();
+    const target = new THREE.Vector3();
+    const q = new THREE.Vector4();
+    const textureMatrix = new THREE.Matrix4(
+      0.5, 0.0, 0.0, 0.5,
+      0.0, 0.5, 0.0, 0.5,
+      0.0, 0.0, 0.5, 0.5,
+      0.0, 0.0, 0.0, 1.0);
+    const virtualCamera = this.camera;
     const clock = new THREE.Clock()
 
     // internal components
-    const reflector = new Reflector(geometry, {
-      textureWidth: textureWidth,
-      textureHeight: textureHeight,
-      clipBias: clipBias
-    })
+    const renderTarget = new THREE.WebGLRenderTarget(textureWidth, textureHeight, {
+      type: THREE.HalfFloatType,
+      minFilter: THREE.LinearFilter,
+      magFilter: THREE.LinearFilter,
+    });
+    renderTarget.depthBuffer = true;
+    renderTarget.depthTexture = new THREE.DepthTexture();
+    renderTarget.depthTexture.type = THREE.UnsignedShortType;
 
-    const refractor = new Refractor(geometry, {
-      textureWidth: textureWidth,
-      textureHeight: textureHeight,
-      clipBias: clipBias
-    })
-
-    reflector.matrixAutoUpdate = false
-    refractor.matrixAutoUpdate = false
 
     // material
 
@@ -84,149 +73,285 @@ export default class ReflectFloorMesh extends THREE.Mesh {
       fog: true
     })
 
-    if (flowMap !== undefined) {
-      this.material.defines.USE_FLOWMAP = ''
-      this.material.uniforms['tFlowMap'] = {
-        type: 't',
-        value: flowMap
-      }
-    } else {
-      this.material.uniforms['flowDirection'] = {
-        type: 'v2',
-        value: flowDirection
-      }
-    }
 
     // maps
 
     normalMap0.wrapS = normalMap0.wrapT = THREE.RepeatWrapping
-    normalMap1.wrapS = normalMap1.wrapT = THREE.RepeatWrapping
     roughness.wrapS = roughness.wrapT = THREE.RepeatWrapping
 
-    this.material.uniforms['tReflectionMap'].value =
-      reflector.getRenderTarget().texture
-    this.material.uniforms['tRefractionMap'].value =
-      refractor.getRenderTarget().texture
+    this.material.uniforms['tReflectionMap'].value = renderTarget.texture
     this.material.uniforms['tNormalMap0'].value = normalMap0
-    this.material.uniforms['tNormalMap1'].value = normalMap1
     this.material.uniforms['tRoughness'].value = roughness
-
-    // water
+    this.material.uniforms.tDepth.value = renderTarget.depthTexture;
 
     this.material.uniforms['color'].value = color
-    this.material.uniforms['reflectivity'].value = reflectivity
     this.material.uniforms['textureMatrix'].value = textureMatrix
 
     // inital values
 
-    this.material.uniforms['config'].value.x = 0 // flowMapOffset0
-    this.material.uniforms['config'].value.y = halfCycle // flowMapOffset1
-    this.material.uniforms['config'].value.z = halfCycle // halfCycle
+    this.material.uniforms['config'].value.x = 0 // 
+    this.material.uniforms['config'].value.y = 0.75
     this.material.uniforms['config'].value.w = scale // scale
 
     // functions
-
-    function updateTextureMatrix(camera) {
-      textureMatrix.set(
-        0.5,
-        0.0,
-        0.0,
-        0.5,
-        0.0,
-        0.5,
-        0.0,
-        0.5,
-        0.0,
-        0.0,
-        0.5,
-        0.5,
-        0.0,
-        0.0,
-        0.0,
-        1.0
-      )
-
-      textureMatrix.multiply(camera.projectionMatrix)
-      textureMatrix.multiply(camera.matrixWorldInverse)
-      textureMatrix.multiply(scope.matrixWorld)
-    }
-
-    function updateFlow() {
-      const delta = clock.getDelta()
-      const config = scope.material.uniforms['config']
-
-      config.value.x += flowSpeed * delta // flowMapOffset0
-      config.value.y = config.value.x + halfCycle // flowMapOffset1
-
-      // Important: The distance between offsets should be always the value of "halfCycle".
-      // Moreover, both offsets should be in the range of [ 0, cycle ].
-      // This approach ensures a smooth water flow and avoids "reset" effects.
-
-      if (config.value.x >= cycle) {
-        config.value.x = 0
-        config.value.y = halfCycle
-      } else if (config.value.y >= cycle) {
-        config.value.y = config.value.y - cycle
-      }
-    }
-
     this.onBeforeRender = function (renderer, scene, camera) {
-      updateTextureMatrix(camera)
-      // updateFlow()
+      reflectorWorldPosition.setFromMatrixPosition(scope.matrixWorld);
+      cameraWorldPosition.setFromMatrixPosition(camera.matrixWorld);
+      rotationMatrix.extractRotation(scope.matrixWorld);
 
-      scope.visible = false
+      normal.set(0, 0, 1);
+      normal.applyMatrix4(rotationMatrix);
 
-      reflector.matrixWorld.copy(scope.matrixWorld)
-      refractor.matrixWorld.copy(scope.matrixWorld)
+      view.subVectors(reflectorWorldPosition, cameraWorldPosition);
 
-      reflector.onBeforeRender(renderer, scene, camera)
-      refractor.onBeforeRender(renderer, scene, camera)
+      // Avoid rendering when reflector is facing away
 
-      scope.visible = true
-    }
+      if (view.dot(normal) > 0) return;
 
+      view.reflect(normal).negate();
+      view.add(reflectorWorldPosition);
+
+      rotationMatrix.extractRotation(camera.matrixWorld);
+
+      lookAtPosition.set(0, 0, - 1);
+      lookAtPosition.applyMatrix4(rotationMatrix);
+      lookAtPosition.add(cameraWorldPosition);
+
+      target.subVectors(reflectorWorldPosition, lookAtPosition);
+      target.reflect(normal).negate();
+      target.add(reflectorWorldPosition);
+
+      virtualCamera.position.copy(view);
+      virtualCamera.up.set(0, 1, 0);
+      virtualCamera.up.applyMatrix4(rotationMatrix);
+      virtualCamera.up.reflect(normal);
+      virtualCamera.lookAt(target);
+
+      virtualCamera.far = camera.far; // Used in WebGLBackground
+
+      virtualCamera.updateMatrixWorld();
+      virtualCamera.projectionMatrix.copy(camera.projectionMatrix);
+
+      this.material.uniforms.cameraNear.value = camera.near;
+      this.material.uniforms.cameraFar.value = camera.far;
+      // Update the texture matrix
+      textureMatrix.set(
+        0.5, 0.0, 0.0, 0.5,
+        0.0, 0.5, 0.0, 0.5,
+        0.0, 0.0, 0.5, 0.5,
+        0.0, 0.0, 0.0, 1.0
+      );
+      textureMatrix.multiply(virtualCamera.projectionMatrix);
+      textureMatrix.multiply(virtualCamera.matrixWorldInverse);
+      textureMatrix.multiply(scope.matrixWorld);
+
+      // Now update projection matrix with new clip plane, implementing code from: http://www.terathon.com/code/oblique.html
+      // Paper explaining this technique: http://www.terathon.com/lengyel/Lengyel-Oblique.pdf
+      reflectorPlane.setFromNormalAndCoplanarPoint(normal, reflectorWorldPosition);
+      reflectorPlane.applyMatrix4(virtualCamera.matrixWorldInverse);
+
+      clipPlane.set(reflectorPlane.normal.x, reflectorPlane.normal.y, reflectorPlane.normal.z, reflectorPlane.constant);
+
+      const projectionMatrix = virtualCamera.projectionMatrix;
+
+      q.x = (Math.sign(clipPlane.x) + projectionMatrix.elements[8]) / projectionMatrix.elements[0];
+      q.y = (Math.sign(clipPlane.y) + projectionMatrix.elements[9]) / projectionMatrix.elements[5];
+      q.z = - 1.0;
+      q.w = (1.0 + projectionMatrix.elements[10]) / projectionMatrix.elements[14];
+
+      // Calculate the scaled plane vector
+      clipPlane.multiplyScalar(2.0 / clipPlane.dot(q));
+
+      // Replacing the third row of the projection matrix
+      projectionMatrix.elements[2] = clipPlane.x;
+      projectionMatrix.elements[6] = clipPlane.y;
+      projectionMatrix.elements[10] = clipPlane.z + 1.0 - clipBias;
+      projectionMatrix.elements[14] = clipPlane.w;
+
+      // Render
+      scope.visible = false;
+
+      const currentRenderTarget = renderer.getRenderTarget();
+
+      const currentXrEnabled = renderer.xr.enabled;
+      const currentShadowAutoUpdate = renderer.shadowMap.autoUpdate;
+
+      renderer.xr.enabled = false; // Avoid camera modification
+      renderer.shadowMap.autoUpdate = false; // Avoid re-computing shadows
+
+      renderer.setRenderTarget(renderTarget);
+
+      renderer.state.buffers.depth.setMask(true); // make sure the depth buffer is writable so it can be properly cleared, see #18897
+
+      if (renderer.autoClear === false) renderer.clear();
+      renderer.render(scene, virtualCamera);
+
+      renderer.xr.enabled = currentXrEnabled;
+      renderer.shadowMap.autoUpdate = currentShadowAutoUpdate;
+
+      renderer.setRenderTarget(currentRenderTarget);
+
+      // Restore viewport
+
+      const viewport = camera.viewport;
+
+      if (viewport !== undefined) {
+
+        renderer.state.viewport(viewport);
+
+      }
+
+      scope.visible = true;
+    };
+
+    this.getRenderTarget = function () {
+
+      return renderTarget;
+
+    };
+    this.dispose = function () {
+
+      renderTarget.dispose();
+      scope.material.dispose();
+
+    };
   }
 }
-ReflectFloorMesh.GlassShader = {
-  name: 'groundGlassShader',
+Reflector.ReflectorShader = {
+
+  name: 'ReflectorShader',
+
   uniforms: {
-    color: {
-      type: 'c',
+
+    'color': {
       value: null
     },
-    reflectivity: {
+    'config':{
+      value: new THREE.Vector4()
+    },
+    'tReflectionMap': {
+      value: null
+    },
+    'tNormalMap0':{
+      value: null
+    },
+    'tRoughness':{
+      type: 't',
+      value: null
+    },
+    'textureMatrix': {
+      value: null
+    },
+    'tDepth': {
+      type: 't',
+      value: null
+    },
+    'cameraNear': {
       type: 'f',
       value: 0
     },
-    tReflectionMap: {
-      type: 't',
-      value: null
+
+    'cameraFar': {
+      type: 'f',
+      value: 0
     },
-    tRefractionMap: {
-      type: 't',
-      value: null
-    },
-    tNormalMap0: {
-      type: 't',
-      value: null
-    },
-    tNormalMap1: {
-      type: 't',
-      value: null
-    },
-    tRoughness:{
-      type: 't',
-      value: null
-    },
-    textureMatrix: {
-      type: 'm4',
-      value: null
-    },
-    config: {
-      type: 'v4',
-      value: new THREE.Vector4()
-    }
   },
-  vertexShader: vertex,
-  fragmentShader: fragment
-}
+
+  vertexShader: /* glsl */`
+		uniform mat4 textureMatrix;
+		varying vec4 vCoord;
+    varying vec2 vUv;
+		void main() {
+      vUv = uv;
+			vCoord = textureMatrix * vec4( position, 1.0 );
+
+			gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+
+		}`,
+
+  fragmentShader: /* glsl */`
+    #include <packing>
+		uniform vec3 color;
+		uniform sampler2D tReflectionMap;
+    uniform sampler2D tDepth;
+		uniform float cameraNear;
+		uniform float cameraFar;
+    uniform sampler2D tNormalMap0;
+    uniform sampler2D tRoughness;
+    uniform vec4 config;
+		varying vec4 vCoord;
+    varying vec2 vUv;
+
+
+		float blendOverlay( float base, float blend ) {
+
+			return( base < 0.5 ? ( 2.0 * base * blend ) : ( 1.0 - 2.0 * ( 1.0 - base ) * ( 1.0 - blend ) ) );
+
+		}
+
+		vec3 blendOverlay( vec3 base, vec3 blend ) {
+
+			return vec3( blendOverlay( base.r, blend.r ), blendOverlay( base.g, blend.g ), blendOverlay( base.b, blend.b ) );
+
+		}
+    float readDepth( sampler2D depthSampler, vec4 coord ) {
+				
+		float fragCoordZ = texture2DProj( depthSampler, coord ).x;
+		float viewZ = perspectiveDepthToViewZ( fragCoordZ, cameraNear, cameraFar );
+		return viewZToOrthographicDepth( viewZ, cameraNear, cameraFar );
+			
+		}
+    #define pow2(x) (x * x)
+
+    const float pi = atan(1.0) * 4.0;
+    const int samples = 8;
+    const float sigma = float(samples) * 0.25;
+    float gaussian(vec2 i) {
+      return 1.0 / (2.0 * pi * pow2(sigma)) * exp(-((pow2(i.x) + pow2(i.y)) / (2.0 * pow2(sigma))));
+    }
+  
+    vec3 blur(sampler2D sp, vec2 uv, vec2 scale) {
+        vec3 col = vec3(0.0);
+        float accum = 0.0;
+        float weight;
+        vec2 offset;
+        
+        for (int x = -samples / 2; x < samples / 2; ++x) {
+            for (int y = -samples / 2; y < samples / 2; ++y) {
+                offset = vec2(x, y);
+                weight = gaussian(offset);
+                col += texture(sp, uv + scale * offset).rgb * weight;
+                accum += weight;
+            }
+        }
+        
+        return col / accum;
+    }
+		void main() {
+
+			#include <logdepthbuf_fragment>
+      vec2 uv = vUv;
+			vec4 base = texture2DProj( tReflectionMap, vCoord );
+      float depth = readDepth( tDepth, vCoord );
+      vec3 Color = blur(tReflectionMap,vCoord.xy/vCoord.w,vec2(1.0)/vec2(1920.,1080.));
+			// gl_FragColor = vec4( blendOverlay( base.rgb, vec3(1.,1.,0.) ), 1. -( depth * 1000.0 )  );
+			gl_FragColor = vec4( Color, 1.- ( depth * 100.0 ));
+
+	    float scale = config.w;
+
+      vec4 normalColor = texture2D(tNormalMap0, (uv * scale));
+      vec3 normal = normalize(vec3(normalColor.r * 2.0 - 1.0, normalColor.b, normalColor.g * 2.0 - 1.0));
+      vec3 coord = vCoord.xyz / vCoord.w;
+      vec2 uv_normal = coord.xy + coord.z * normal.xz * 0.25 ;
+      vec4 reflectColor = texture2D(tReflectionMap, vec2( uv_normal.x, uv_normal.y));
+      
+      float roughness = texture2D(tRoughness, uv*0.5).g;
+      float mixRatio = 1. - roughness;
+
+      gl_FragColor *=  mixRatio;
+      gl_FragColor +=  reflectColor;
+			#include <tonemapping_fragment>
+			#include <colorspace_fragment>
+
+		}`
+};
