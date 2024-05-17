@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import tNormalMap0 from './textures/t_floor_normal.webp'
 import tRoughness from './textures/t_floor_roughness.webp'
+import tNoise from './textures/noise.png'
 
 export default class Reflector extends THREE.Mesh {
   constructor(geometry, options = {}) {
@@ -29,6 +30,7 @@ export default class Reflector extends THREE.Mesh {
       options.normalMap0 ||
       textureLoader.load(tNormalMap0)
     const roughness = options.roughness || textureLoader.load(tRoughness)
+    const Noise = options.tNoise || textureLoader.load(tNoise)
     const reflectorPlane = new THREE.Plane();
     const normal = new THREE.Vector3();
     const reflectorWorldPosition = new THREE.Vector3();
@@ -78,10 +80,12 @@ export default class Reflector extends THREE.Mesh {
 
     normalMap0.wrapS = normalMap0.wrapT = THREE.RepeatWrapping
     roughness.wrapS = roughness.wrapT = THREE.RepeatWrapping
+    Noise.wrapS = Noise.wrapT = THREE.RepeatWrapping
 
     this.material.uniforms['tReflectionMap'].value = renderTarget.texture
     this.material.uniforms['tNormalMap0'].value = normalMap0
     this.material.uniforms['tRoughness'].value = roughness
+    this.material.uniforms['tNoise'].value = Noise
     this.material.uniforms.tDepth.value = renderTarget.depthTexture;
 
     this.material.uniforms['color'].value = color
@@ -239,6 +243,9 @@ Reflector.ReflectorShader = {
       type: 't',
       value: null
     },
+    'tNoise':{
+      value:null
+    },
     'textureMatrix': {
       value: null
     },
@@ -278,6 +285,7 @@ Reflector.ReflectorShader = {
 		uniform float cameraFar;
     uniform sampler2D tNormalMap0;
     uniform sampler2D tRoughness;
+    uniform sampler2D tNoise;
     uniform vec4 config;
 		varying vec4 vCoord;
     varying vec2 vUv;
@@ -327,29 +335,36 @@ Reflector.ReflectorShader = {
         
         return col / accum;
     }
+    vec2 noise (vec2 uv){
+      // uv = vec2(dot(uv,vec2(127.1,311.7)),dot(uv,vec2(269.5,183.3)));
+      // return fract(sin(uv) * 43758.5453123) - 0.5;
+      return texture2D(tNoise,uv).xy - 0.5;
+    }
 		void main() {
 
 			#include <logdepthbuf_fragment>
-      vec2 uv = vUv;
+      vec2 uv = vec2(vCoord.x/vCoord.w,vCoord.y/vCoord.w);
 			vec4 base = texture2DProj( tReflectionMap, vCoord );
       float depth = readDepth( tDepth, vCoord );
-      vec3 Color = blur(tReflectionMap,vCoord.xy/vCoord.w,vec2(1.0)/vec2(1920.,1080.));
+      // vec3 Color = blur(tReflectionMap,vCoord.xy/vCoord.w,vec2(1.0)/vec2(1920.,1080.));
 			// gl_FragColor = vec4( blendOverlay( base.rgb, vec3(1.,1.,0.) ), 1. -( depth * 1000.0 )  );
-			gl_FragColor = vec4( Color, 1.- ( depth * 100.0 ));
+      // vec4 Color = texture2D(tReflectionMap,uv + noise(uv)*blur_power);
+      // gl_FragColor = vec4( Color, 1.- ( depth * 100.0 ));
 
 	    float scale = config.w;
-
       vec4 normalColor = texture2D(tNormalMap0, (uv * scale));
       vec3 normal = normalize(vec3(normalColor.r * 2.0 - 1.0, normalColor.b, normalColor.g * 2.0 - 1.0));
       vec3 coord = vCoord.xyz / vCoord.w;
       vec2 uv_normal = coord.xy + coord.z * normal.xz * 0.25 ;
       vec4 reflectColor = texture2D(tReflectionMap, vec2( uv_normal.x, uv_normal.y));
-      
-      float roughness = texture2D(tRoughness, uv*0.5).g;
+      float blur_power = 0.04;
+      vec4 Color = texture2D(tReflectionMap,uv_normal + noise(uv_normal)*blur_power);
+      float roughness = texture2D(tRoughness, vUv*0.5).g;
       float mixRatio = 1. - roughness;
 
+      gl_FragColor = Color;
       gl_FragColor *=  mixRatio;
-      gl_FragColor +=  reflectColor;
+      gl_FragColor +=  reflectColor*0.2;
 			#include <tonemapping_fragment>
 			#include <colorspace_fragment>
 
