@@ -60,7 +60,7 @@ export default class World {
     this.camera = new THREE.PerspectiveCamera(
       45,
       this.width / this.height,
-      2,
+      1,
       100
     )
     this.camera.position.set(0, 0, 22);
