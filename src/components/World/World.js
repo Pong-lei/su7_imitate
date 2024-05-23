@@ -21,6 +21,8 @@ import OutLineClip from './OutLineClip';
 import LineBloom from './LineBloom';
 
 import WindMesh from './WindMesh'
+import BodyMode  from './bodyMode';
+
 
 export default class World {
   bloomEffect;
@@ -58,7 +60,7 @@ export default class World {
     this.camera = new THREE.PerspectiveCamera(
       45,
       this.width / this.height,
-      1,
+      2,
       100
     )
     this.camera.position.set(0, 0, 22);
@@ -211,6 +213,26 @@ export default class World {
         }
       })
   }
+  bodyModeToNomarl (){
+    this.bodyTimeline.reverse()
+    this.currentMode = ''
+  }
+  changeBodyMode(){
+    this.bodyTimeline = new gsap.timeline()
+    this.bodyTimeline.to(this.scene.rotation, {
+      y: -Math.PI / 4,
+      duration: 2,
+      ease: 'power2.out',
+      onComplete: () => {
+        this.scene.updateMatrixWorld(true)
+        this.bodyMode.group.visible = true
+      }
+    }).to(this.bodyMode.bodyPlanMaterial.uniforms.opacity,{
+      value:1,
+      duration:1,
+      ease:'power2.in'
+    })
+  }
   changeNormal() {
     this.topLight.material.emissiveIntensity = 0
     this.localPlane.normal.set(0, 0, - 1);
@@ -265,6 +287,12 @@ export default class World {
     this.windLineBloom = lineBloom
     this.scene.add(lineBloom.group)
     return lineBloom
+  }
+  addBodyMode(){
+    let bodyMode = new BodyMode()
+    bodyMode.group.visible = false
+    this.bodyMode = bodyMode
+    this.scene.add(bodyMode.group)
   }
   addModle(path) {
     const dracoLoader = new DRACOLoader();
@@ -328,6 +356,9 @@ export default class World {
     }
     if (this.windLineBloom) {
       this.windLineBloom.renderThing()
+    }
+    if(this.bodyMode){
+      this.bodyMode.renderThing()
     }
     this.composer && this.composer.render()
     // this.renderer.render(this.scene, this.camera)

@@ -15,7 +15,7 @@ import WindMesh from './WindMesh.js'
 import windLine from './model/wind_line.glb'
 
 let su7world = {}
-let windMode = false
+let currentMode = ''
 let redMaterial = new ShaderMaterial({
   extensions: {
     derivatives: '#extension GL_OES_standard_derivatives : enable'
@@ -42,6 +42,7 @@ windMaterial.uniforms.random = {value:Math.random()}
 onMounted(() => {
   su7world = new World('su7World', 'su7World')
   su7world.initPostGrocess(su7ModelMerge)
+  
   su7world.addModle(su7Model)
   let curvesInstence = su7world.addLineBloom(Curves)
   
@@ -53,13 +54,22 @@ onMounted(() => {
   windInstence.addModel(windLine)
   windInstence.group.scale.set(2,2,2)
   windInstence.group.position.y = 0.2
+
+  su7world.addBodyMode()
 })
-const handleClick = () => {
-  windMode = !windMode
-  if (windMode) {
+const handleClick = (mode) => {
+  if (currentMode === '' && mode === 'wind') {
+    currentMode = mode
     su7world.changeWind()
-  } else {
+  } else if(currentMode == 'wind' && mode === 'wind'){
+    currentMode = ''
     su7world.changeNormal()
+  } else if(currentMode == '' && mode === 'body'){
+    currentMode = mode
+    su7world.changeBodyMode()
+  } else if(currentMode == 'body' && mode === 'body'){
+    currentMode = ''
+    su7world.bodyModeToNomarl()
   }
 }
 </script>
@@ -67,7 +77,8 @@ const handleClick = () => {
 <template>
   <div id="su7World">
     <div class="windBtn">
-      <button class="btn" @click="handleClick">风阻</button>
+      <button class="btn" @click="handleClick('wind')">风阻</button>
+      <button class="btn" @click="handleClick('body')">车身</button>
     </div>
   </div>
 </template>
