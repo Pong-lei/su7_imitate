@@ -96,6 +96,7 @@ export default class World {
     });
     floor.rotation.x = -Math.PI / 2;
     floor.position.y = -0.0001;
+    this.floor = floor;
     this.scene.add(floor);
   }
   initComposer() {
@@ -322,56 +323,53 @@ export default class World {
       );
   }
   changeI_drivingModeToNomarl() {
-    this.camera.far = 100;
-    this.camera.fov = 45;
-    this.camera.near = 1;
     this.camera.updateProjectionMatrix();
     const carObject = this.scene.getObjectByName("carScene");
     carObject.scale.set(2, 2, 2);
+    this.floor.visible = true;
     this.drivingMode.t1.reverse();
+
     this.scene.fog.density = 0.01;
     this.localPlane.constant = 13;
     this.topLight.material.emissiveIntensity = 0.52;
     this.topLight.visible = true;
-
-    // this.camera.position.set(0, 0, 22);
     const Points = this.scene.getObjectByName("Points");
 
     if (Points) {
       this.scene.remove(Points);
     }
   }
-  changeI_drivingMode() {
+  async changeI_drivingMode() {
     this.localPlane.constant = -Infinity;
-    this.scene.fog.density = 0.0003;
-    this.camera.far = 20000;
-    this.camera.fov = 75;
+    this.camera.far = 1000;
     this.camera.near = 0.1;
-    this.camera.updateProjectionMatrix();
 
-    let { renderThing } = Init_I_drivingModeBg(this.scene, this.camera);
+    let { renderThing } = await Init_I_drivingModeBg(this.scene, this.camera);
     this.drivingMode.renderThing = renderThing;
 
-    let pos = {
-      carSize: 180,
-    };
     const carObject = this.scene.getObjectByName("carScene");
-    carObject.scale.set(pos.carSize, pos.carSize, pos.carSize);
+    this.floor.visible = false;
+
     this.drivingMode.t1 = new gsap.timeline();
     this.drivingMode.t1
       .to(this.camera.position, {
-        y: 1800,
-        z: 4500,
+        y: 26,
+        z: 65,
         duration: 1.5,
         ease: "power2.in",
+        onUpdate: () => {
+          this.camera.updateProjectionMatrix();
+          this.controls.update();
+        },
       })
-
-      .to(carObject.rotation, { y: -Math.PI / 2, duration: 1.5 }, "<+0.4");
+      .to(this.camera, { fov: 75, duration: 1.5 }, "<")
+      .to(carObject.rotation, { y: -Math.PI / 2, duration: 1.5 }, "<");
 
     // this.camera.position.set(0, 1800, 4500);
 
     this.topLight.material.emissiveIntensity = 0.1;
     this.topLight.visible = false;
+    console.log(this.scene);
   }
   addLineBloom(Curves) {
     let lineBloom = new LineBloom(Curves);
