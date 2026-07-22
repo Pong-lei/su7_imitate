@@ -1,6 +1,12 @@
 # Vue 3 + Vite
 喜欢的话点个小星星，后续会把其他效果添加上
-在线浏览地址https://su7-imitate.vercel.app/
+
+<hr />
+> 在线浏览地址https://su7-imitate.vercel.app/
+<hr />
+
+**练习2年半后（从三端斗之气 进阶到 一代斗皇宗师^~^，恐怖如斯(小斗师)），沉淀了些新的理解，重新翻新的项目的新地址 https://vercel.com/ponglei/replica-c10**
+
 
 > 风阻模式
 - [x] 模型添加
